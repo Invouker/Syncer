@@ -124,6 +124,31 @@ namespace SyncData
                 }
             }
         }
+        
+        private void SetAutoStart()
+        {
+            
+            string appName = "Syncer";
+
+            // Specify your application's executable path
+            //string appPath = @"C:\Path\To\Your\Application.exe";
+            string appPath = @"E:\Github\Sync\SyncData\bin\Debug2\SyncData.exe";
+
+            RegistryKey registryKey = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+            // Check if the auto-start is currently enabled
+            bool isAutoStartEnabled = registryKey.GetValue(appName) != null;
+            
+            if (!isAutoStartEnabled)
+            {
+                // Enable auto-start
+                registryKey.SetValue(appName, appPath);
+                StatusText.Text = "Auto app start enabled.";
+            }else {
+                // Disable auto-start
+                registryKey.DeleteValue(appName, false);
+                StatusText.Text = "Auto app start disabled.";
+            }
+        }
 
         private void BrowseLocalPath_Click(object sender, RoutedEventArgs e)
         {
@@ -137,5 +162,12 @@ namespace SyncData
                 }
             }
         }
+
+        private void ToggleAutoStart_Click(object sender, RoutedEventArgs e)
+        {
+            // Toggle the auto-start feature
+            SetAutoStart();
+        }
+
     }
 }
