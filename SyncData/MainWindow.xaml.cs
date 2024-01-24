@@ -19,11 +19,14 @@ namespace SyncData
         private string password;
         private string remotePath;
         private string localPath;
+        
+        FileSystemWatcher watcher;
 
         public MainWindow()
         {
             InitializeComponent();
             LoadSettings();
+            InitializeFileSystemWatcher();
         }
 
         private readonly string configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SyncData/SyncAppSettings.data");
@@ -55,6 +58,30 @@ namespace SyncData
             Task.Run(() => PerformSync());
         }
 
+        private void InitializeFileSystemWatcher()
+        {
+            string localFolderPath = LocalPathTextBox.Text;
+
+            // Create a new FileSystemWatcher
+            watcher = new FileSystemWatcher(localFolderPath);
+            
+            // Subscribe to events
+            watcher.Created += OnFileChanged;
+            watcher.Changed += OnFileChanged;
+            watcher.Deleted += OnFileChanged;
+            watcher.Renamed += OnFileChanged;
+
+            // Begin watching
+            watcher.EnableRaisingEvents = true;
+        }
+        
+        private void OnFileChanged(object sender, FileSystemEventArgs e)
+        {
+            // Perform synchronization when a file changes
+            PerformSync();
+        }
+
+        
         private void PerformSync()
         {
             
@@ -62,7 +89,6 @@ namespace SyncData
                 try {
                     client.Connect();
                     // Upload file to VPS
-                    Console.WriteLine(localPath);
                     UploadFolder(client, localPath, remotePath);
                     Dispatcher.Invoke(() => StatusText.Text = "Sync completed successfully.");
                     client.Disconnect();
