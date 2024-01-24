@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using Renci.SshNet;
 using MessageBox = System.Windows.MessageBox;
 
 namespace SyncData
@@ -49,32 +51,59 @@ namespace SyncData
             }
 
             StatusText.Text = "Sync in progress...";
-
             // Spustiť synchronizáciu na pozadí
             Task.Run(() => PerformSync());
         }
 
         private void PerformSync()
         {
-            // Implementujte synchronizáciu súborov zo zadaných priečinkov
-            // Príklad: Kopírovanie všetkých súborov z lokalného priečinka do vzdialeného
-            try
+            
+            using (var client = new SftpClient(host, login, password)) {
+                try {
+                    client.Connect();
+                    // Upload file to VPS
+                    Console.WriteLine(localPath);
+                    UploadFolder(client, localPath, remotePath);
+                    Dispatcher.Invoke(() => StatusText.Text = "Sync completed successfully.");
+                    client.Disconnect();
+                }catch(Exception ex) {
+                    client.Disconnect();
+                    Dispatcher.Invoke(() => StatusText.Text = $"Error while sync data: {ex.Message}");
+                }
+            }
+        }
+        
+        private void UploadFolder(SftpClient client, string localFolderPath, string vpsFolderPath)
+        {
+            // Get a list of files and subdirectories in the local folder
+            string[] files = Directory.GetFiles(localFolderPath);
+            string[] subDirectories = Directory.GetDirectories(localFolderPath);
+
+            // Upload files in the current folder
+            foreach (string filePath in files)
             {
-                string[] files = Directory.GetFiles(localPath);
-                foreach (string file in files)
+                string fileName = Path.GetFileName(filePath);
+
+                using (var fileStream = new FileStream(filePath, FileMode.Open))
                 {
-                    string fileName = Path.GetFileName(file);
-                    string destinationPath = Path.Combine(remotePath, fileName);
-                    File.Copy(file, destinationPath, true);
+                    client.UploadFile(fileStream, $"{vpsFolderPath}{fileName}");
+                }
+            }
+
+            // Recursively upload files in subdirectories
+            foreach (string subDirectory in subDirectories)
+            {
+                string subDirectoryName = Path.GetFileName(subDirectory);
+                string subDirectoryVpsPath = $"{vpsFolderPath}{subDirectoryName}/";
+
+                // Create the subdirectory on the server if it doesn't exist
+                if (!client.Exists(subDirectoryVpsPath))
+                {
+                    client.CreateDirectory(subDirectoryVpsPath);
                 }
 
-                // Zobrazte správu o úspechu
-                Dispatcher.Invoke(() => StatusText.Text = "Sync completed successfully.");
-            }
-            catch (Exception ex)
-            {
-                // Zobrazte chybovú správu
-                Dispatcher.Invoke(() => StatusText.Text = $"Error during sync: {ex.Message}");
+                // Recursively upload files in the subdirectory
+                UploadFolder(client, subDirectory, subDirectoryVpsPath);
             }
         }
         
@@ -125,9 +154,7 @@ namespace SyncData
             }
         }
         
-        private void SetAutoStart()
-        {
-            
+        private void SetAutoStart() {
             string appName = "Syncer";
 
             // Specify your application's executable path
