@@ -1,7 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using System.Windows;
@@ -12,24 +13,31 @@ using MessageBox = System.Windows.MessageBox;
 
 namespace SyncData
 {
-    public partial class MainWindow : Window
-    {
+    public partial class MainWindow {
         private string host;
         private string login;
         private string password;
         private string remotePath;
         private string localPath;
-        
-        FileSystemWatcher watcher;
+
+        private FileSystemWatcher watcher;
+        private readonly string configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SyncData/SyncAppSettings.data");
 
         public MainWindow()
         {
             InitializeComponent();
             LoadSettings();
             InitializeFileSystemWatcher();
+            
+            Closing += MainWindow_Closing;
         }
-
-        private readonly string configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SyncData/SyncAppSettings.data");
+        
+        private void MainWindow_Closing(object sender, CancelEventArgs e) {
+            // Prevent the application from closing
+            e.Cancel = true;
+            // Minimize the window instead
+            WindowState = WindowState.Minimized;
+        }
         
         private void SaveSettings_Click(object sender, RoutedEventArgs e)
         {
@@ -41,7 +49,6 @@ namespace SyncData
 
             SaveSettings();
             StatusText.Text = "Settings has been saved.";
-            //MessageBox.Show("Settings saved successfully.");
         }
 
         private void StartSync_Click(object sender, RoutedEventArgs e)
@@ -80,11 +87,9 @@ namespace SyncData
             // Perform synchronization when a file changes
             PerformSync();
         }
-
         
         private void PerformSync()
         {
-            
             using (var client = new SftpClient(host, login, password)) {
                 try {
                     client.Connect();
@@ -137,12 +142,10 @@ namespace SyncData
         {
             string dataToSave = $"{host};{login};{password};{remotePath};{localPath}";
             // Convert the string to bytes
-            Debug.WriteLine(dataToSave);
             byte[] buffer = System.Text.Encoding.UTF8.GetBytes(dataToSave);
 
             // Use DPAPI to protect the data
             byte[] encryptedData = ProtectedData.Protect(buffer, null, DataProtectionScope.CurrentUser);
-            Debug.WriteLine(encryptedData);
 
             // Save settings to the configuration file
             File.WriteAllBytes(configFilePath, encryptedData);
@@ -153,7 +156,6 @@ namespace SyncData
             // Load settings from the configuration file
             if (File.Exists(configFilePath))
             {
-                
                 // Use DPAPI to unprotect the data
                 byte[] decryptedData = ProtectedData.Unprotect(File.ReadAllBytes(configFilePath), null, DataProtectionScope.CurrentUser);
 
